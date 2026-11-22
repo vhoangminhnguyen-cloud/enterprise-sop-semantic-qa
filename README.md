@@ -9,7 +9,29 @@ Drawing from experience contributing to internal Standard Operating Procedure (S
 3. **Evaluate retrieval accuracy and rule-based output guardrails** through a structured 10-case QA benchmark (evaluating deterministic rule-based responses rather than generative LLM answers), explicitly analyzing failure cases rather than artificially tuning thresholds.
 
 ## 2. System Architecture & Scope Clarification
-![System Architecture & Workflow](workflow_architecture.png)
+## 2. System Architecture & Workflow
+
+```mermaid
+flowchart LR
+    A[4 Simulated SOP Documents] --> B[Embedding Model\nall-MiniLM-L6-v2]
+    Q[User Query] --> B
+    B --> C[Cosine Similarity\nSemantic Retrieval]
+    C --> D{Rule-Based Guardrails}
+    D -->|Sensitive Keyword Match| E[REFUSED\nPrivacy Guardrail]
+    D -->|Similarity < 0.35| F[ABSTAINED\nOut-of-Scope]
+    D -->|Similarity >= 0.35| G[GROUNDED ANSWER\nRule-Based Policy Citation]
+    E & F & G --> H[10-Case QA Evaluation\n70% Pass Rate / 3 Failures Analyzed]
+```
+
+### Step-by-Step Execution Flow:
+1. **Unstructured Knowledge Base (`enterprise_sop_knowledge_base.csv`):** A synthetic corpus of 4 simulated internal enterprise policy documents covering procurement approval thresholds (`SOP-PROC-01`), vendor NDA & financial confidentiality (`SOP-PROC-02`), hybrid work & leave policies (`SOP-HCM-03`), and enterprise AI data privacy guidelines (`SOP-AI-04`).
+2. **Dense Vector Embedding (`all-MiniLM-L6-v2`):** Converts both the simulated SOP passages and incoming natural language queries into 384-dimensional dense vector representations using a pre-trained `SentenceTransformers` model.
+3. **Cosine Similarity Retrieval:** Computes pairwise cosine similarity between the user query vector and stored SOP vectors to rank and retrieve the single most contextually relevant policy document (`top_k=1`).
+4. **Deterministic Rule-Based Guardrails & Response Generation (Non-LLM):** Instead of invoking a generative Large Language Model (LLM), the pipeline applies deterministic governance rules to generate safe outputs:
+   - **Privacy Filter:** Intercepts queries containing restricted sensitive keywords (e.g., `bank account`, `salary`, `password`) and returns a `REFUSED` status.
+   - **Confidence Threshold Abstention (`< 0.35`):** Rejects queries with low semantic similarity to prevent ungrounded answers on out-of-scope topics (`ABSTAINED`).
+   - **Grounded Citation Template (`>= 0.35`):** Returns the exact matching policy title and verbatim content (`ANSWER`).
+5. **10-Case QA Evaluation & Error Analysis (`ai_output_qa_report.csv`):** Benchmarks system behavior across 4 test categories (*Direct Lookup*, *Semantic Paraphrase*, *Out-of-Scope Traps*, and *Privacy Attacks*), recording a **70% Pass Rate (7/10)** and documenting the 3 failure cases for targeted improvement.
 
 - **Unstructured Knowledge Base (`enterprise_sop_knowledge_base.csv`):** A synthetic corpus of 4 simulated enterprise policy documents covering procurement approval thresholds (`SOP-PROC-01`), vendor NDA & financial confidentiality (`SOP-PROC-02`), hybrid work & leave policies (`SOP-HCM-03`), and enterprise AI data privacy guidelines (`SOP-AI-04`).
 - **Semantic Retrieval Engine (`all-MiniLM-L6-v2`):** Converts simulated SOP documents and natural language user queries into dense vector representations, ranking matches via cosine similarity.
